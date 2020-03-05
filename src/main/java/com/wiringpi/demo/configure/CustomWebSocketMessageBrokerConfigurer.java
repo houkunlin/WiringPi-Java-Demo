@@ -24,7 +24,7 @@ public class CustomWebSocketMessageBrokerConfigurer implements WebSocketMessageB
          * addEndpoint：添加STOMP协议的端点。这个HTTP URL是供WebSocket或SockJS客户端访问的地址
          * withSockJS：指定端点使用SockJS协议
          */
-        registry.addEndpoint("/websocket-simple")
+        registry.addEndpoint("/raspberry-pi/airplane")
                 .setAllowedOrigins("*")
                 .withSockJS();
     }
