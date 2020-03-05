@@ -1,8 +1,6 @@
 package com.wiringpi.modules.airplane.handler;
 
 import com.wiringpi.modules.airplane.Airplane;
-import com.wiringpi.modules.airplane.enums.Action;
-import org.apache.commons.lang3.ArrayUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

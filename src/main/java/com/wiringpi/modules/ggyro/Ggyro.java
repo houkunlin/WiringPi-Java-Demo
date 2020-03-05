@@ -43,9 +43,9 @@ public class Ggyro {
     }
 
     public Ggyro refresh1() {
-        x = piI2C.readWord2c(0x43);
-        y = piI2C.readWord2c(0x45);
-        z = piI2C.readWord2c(0x47);
+        x = piI2C.wiringPiI2CReadReg16(0x43);
+        y = piI2C.wiringPiI2CReadReg16(0x45);
+        z = piI2C.wiringPiI2CReadReg16(0x47);
 
         xScaled = x / 131.0;
         yScaled = y / 131.0;
@@ -57,9 +57,9 @@ public class Ggyro {
     }
 
     public Ggyro refresh2() {
-        x = piI2C.readWord2c(0x3B);
-        y = piI2C.readWord2c(0x3D);
-        z = piI2C.readWord2c(0x3F);
+        x = piI2C.wiringPiI2CReadReg16(0x3B);
+        y = piI2C.wiringPiI2CReadReg16(0x3D);
+        z = piI2C.wiringPiI2CReadReg16(0x3F);
 
         xScaled = x / 16384.0;
         yScaled = y / 16384.0;

@@ -1,5 +1,6 @@
 package com.wiringpi.modules.airplane.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.wiringpi.jni.WiringPiI2C;
 import lombok.Data;
 import org.slf4j.Logger;
@@ -14,6 +15,7 @@ import org.slf4j.LoggerFactory;
 @Data
 public class Posture {
     private static final Logger logger = LoggerFactory.getLogger(Posture.class);
+    @JsonIgnore
     private WiringPiI2C piI2C;
     /**
      * 加速度X
@@ -63,11 +65,11 @@ public class Posture {
 
     public void refresh1() {
         // 绕X轴旋转的角速度GYR_X
-        int x = piI2C.readWord2c(0x43);
+        int x = piI2C.wiringPiI2CReadReg16(0x43);
         // 绕Y轴旋转的角速度GYR_Y
-        int y = piI2C.readWord2c(0x45);
+        int y = piI2C.wiringPiI2CReadReg16(0x45);
         // 绕Z轴旋转的角速度GYR_Z
-        int z = piI2C.readWord2c(0x47);
+        int z = piI2C.wiringPiI2CReadReg16(0x47);
 
         gyroX = x / 131.0;
         gyroY = y / 131.0;
@@ -76,11 +78,11 @@ public class Posture {
 
     public Posture refresh2() {
         // 加速度计的X轴分量ACC_X
-        int x = piI2C.readWord2c(0x3B);
+        int x = piI2C.wiringPiI2CReadReg16(0x3B);
         // 加速度计的Y轴分量ACC_Y
-        int y = piI2C.readWord2c(0x3D);
+        int y = piI2C.wiringPiI2CReadReg16(0x3D);
         // 加速度计的Z轴分量ACC_Z
-        int z = piI2C.readWord2c(0x3F);
+        int z = piI2C.wiringPiI2CReadReg16(0x3F);
 
         accX = x / 16384.0;
         accY = y / 16384.0;
