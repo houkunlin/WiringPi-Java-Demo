@@ -1,6 +1,7 @@
 package com.wiringpi.modules.airplane.dto;
 
 import com.wiringpi.demo.hardware.Pca9685;
+import com.wiringpi.jni.WiringPiSetup;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +11,7 @@ class Pca9685Test {
 
     @Test
     public void testPca9685() throws InterruptedException {
+        WiringPiSetup.wiringPiSetup();
         Pca9685 pca9685 = new Pca9685(0x40);
         pca9685.setPWMFreq(50);
         int max = 2200;
@@ -21,6 +23,7 @@ class Pca9685Test {
 
         logger.debug("设置油门上限");
         setPlan(pca9685, max);
+        logger.debug("读取数值：{} / {} / {} ", pca9685.read2reg(0x08), pca9685.readPwm(0), pca9685.readPwm(1));
         Thread.sleep(5 * 1000);
 
         logger.debug("设置油门下限");

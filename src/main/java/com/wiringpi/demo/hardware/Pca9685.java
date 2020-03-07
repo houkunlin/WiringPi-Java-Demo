@@ -3,6 +3,7 @@ package com.wiringpi.demo.hardware;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.wiringpi.jni.WiringPi;
 import com.wiringpi.jni.WiringPiI2C;
+import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,6 +13,7 @@ import org.slf4j.LoggerFactory;
  * @author HouKunLin
  * @date 2020/3/5 0005 16:03
  */
+@Getter
 public class Pca9685 {
     private static final Logger logger = LoggerFactory.getLogger(Pca9685.class);
     private final boolean isDebug = logger.isDebugEnabled();
@@ -33,6 +35,11 @@ public class Pca9685 {
     @JsonIgnore
     private WiringPiI2C piI2C;
 
+    /**
+     * 默认地址应该是 0x40
+     *
+     * @param address 设备地址
+     */
     public Pca9685(int address) {
         this.piI2C = new WiringPiI2C(address);
         logger.info("Reseting PCA9685");
@@ -58,6 +65,47 @@ public class Pca9685 {
             logger.debug("I2C: Device 0x{} returned 0x{} from reg 0x{}", hex(piI2C.getDevId()), hex(result & 0xFF), hex(reg));
         }
         return result;
+    }
+
+    /**
+     * 读取2个寄存器的值，并转换为整型值
+     *
+     * @param reg 起始寄存器地址
+     * @return 返回2个寄存器的值
+     */
+    public int read2reg(int reg) {
+        int value;
+        int value1 = piI2C.wiringPiI2CReadReg8(reg + 1);
+        int value2 = piI2C.wiringPiI2CReadReg8(reg);
+        value = (value1 << 8) + value2;
+        if (value >= 0x8000) {
+            value = -(65536 - value);
+        }
+        if (isDebug) {
+            logger.debug("I2C: Device 0x{} returned 0x{}+0x{} from reg 0x{}", hex(piI2C.getDevId()), hex(reg), hex(reg + 1), value);
+        }
+        return value;
+    }
+
+    /**
+     * 读取指定通道的PWM值
+     *
+     * @param channel 通道
+     * @return 返回指定通道的PWM高电平时间（微秒）
+     */
+    public int readPwm(int channel) {
+        return readPwm(LED0_OFF_L, channel);
+    }
+
+    /**
+     * 读取指定通道的PWM值
+     *
+     * @param reg     起始存储器地址
+     * @param channel 通道
+     * @return 返回指定通道的PWM高电平时间（微秒）
+     */
+    public int readPwm(int reg, int channel) {
+        return read2reg(reg + 4 * channel) * 20000 / 4096;
     }
 
     /**
