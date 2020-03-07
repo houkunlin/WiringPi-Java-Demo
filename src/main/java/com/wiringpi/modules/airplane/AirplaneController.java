@@ -47,10 +47,9 @@ public class AirplaneController {
      *
      * @param map
      * @return
-     * @throws InterruptedException
      */
     @MessageMapping("airplane/power")
-    public void power(Map<String, Object> map) throws InterruptedException {
+    public void power(Map<String, Object> map) {
         logger.info("设置电机电源参数：{}", map);
         Boolean value = (Boolean) map.get("value");
         if (value) {
@@ -85,37 +84,15 @@ public class AirplaneController {
         logger.info("设置电机占空比：{}", dto);
         int index = dto.getIndex();
         double value = dto.getValue();
-        Motor[] motors = airplane.getMotors();
-        if (index > motors.length || index < 1) {
-            for (Motor motor : motors) {
-                motor.setDutyRatio(value);
+        Double[] motorNums = new Double[]{null, null, null, null, null};
+        if (index > motorNums.length || index < 1) {
+            for (int i = 1; i <= 4; i++) {
+                motorNums[i] = value;
             }
         } else {
-            motors[index - 1].setDutyRatio(value);
+            motorNums[index] = value;
         }
-    }
-
-    /**
-     * 设置电机的高电平时间值
-     *
-     * @param dto
-     * @return
-     * @throws InterruptedException
-     */
-    @MessageMapping("airplane/motor/debug")
-    @GetMapping("airplane/motor/debug")
-    public void debug(MotorDebugDTO dto) throws InterruptedException {
-        logger.info("调试电机高电平时间参数：{}", dto);
-        int index = dto.getIndex();
-        double value = dto.getValue();
-        Motor[] motors = airplane.getMotors();
-        if (index > motors.length || index < 1) {
-            for (Motor motor : motors) {
-                motor.setDebugHighLevelTime(value);
-            }
-        } else {
-            motors[index - 1].setDebugHighLevelTime(value);
-        }
+        airplane.getMotor().setPwm(motorNums[1], motorNums[2], motorNums[3], motorNums[4]);
     }
 
     /**
@@ -129,11 +106,7 @@ public class AirplaneController {
         direction.setHorizontal(0.0);
         direction.setForwardBackward(0.0);
         direction.setRotate(0.0);
-        for (Motor motor : airplane.getMotors()) {
-            motor.setDebugHighLevelTime(-1);
-            motor.setDutyRatio(0);
-            motor.setPosture(0);
-        }
+        airplane.getMotor().shutdown();
     }
 
     /**

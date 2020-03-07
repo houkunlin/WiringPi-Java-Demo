@@ -14,7 +14,7 @@ public class DirectionDTO {
      * 垂直参数，应当有一个限制范围（0.0 到 1.0）
      * 其值为-0.5时表示电机未进行初始化操作，此时需要设置此时为1，听到电机提示声后再设置此值为0,
      */
-    private double vertical = -0.5;
+    private double vertical = -1;
     /**
      * 左右行进参数，应当有一个限制范围（左-0.2 到 +0.2右）
      */
@@ -36,7 +36,7 @@ public class DirectionDTO {
     }
 
     public void reset() {
-        this.vertical = -0.5;
+        this.vertical = -1;
         this.horizontal = 0;
         this.forwardBackward = 0;
         this.rotate = 0;

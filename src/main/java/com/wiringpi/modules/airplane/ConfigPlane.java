@@ -20,7 +20,7 @@ public class ConfigPlane {
      */
     @Bean
     public Airplane plane() {
-        return new Airplane(BcmPin.p18.gpio(), BcmPin.p19.gpio(), BcmPin.p20.gpio(), BcmPin.p21.gpio());
+        return new Airplane();
     }
 
     /**

@@ -1,7 +1,6 @@
 package com.wiringpi.modules.airplane;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.wiringpi.gpio.Gpio;
 import com.wiringpi.modules.airplane.dto.DirectionDTO;
 import com.wiringpi.modules.airplane.dto.Gps;
 import com.wiringpi.modules.airplane.dto.Motor;
@@ -9,9 +8,7 @@ import com.wiringpi.modules.airplane.dto.Posture;
 import lombok.Data;
 import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -37,25 +34,9 @@ public class Airplane implements Runnable {
     private DirectionDTO direction = new DirectionDTO();
     private AtomicInteger speed;
     /**
-     * 1 号电机
+     * 电机
      */
-    private Motor motor1;
-    /**
-     * 2 号电机
-     */
-    private Motor motor2;
-    /**
-     * 3 号电机
-     */
-    private Motor motor3;
-    /**
-     * 4 号电机
-     */
-    private Motor motor4;
-    /**
-     * 所有电机列表
-     */
-    private Motor[] motors;
+    private Motor motor;
 
     private boolean run;
 
@@ -67,12 +48,8 @@ public class Airplane implements Runnable {
     /**
      * 默认油门量，维持悬停的油门量
      */
-    public Airplane(Gpio motorPin1, Gpio motorPin2, Gpio motorPin3, Gpio motorPin4) {
-        this.motor1 = new Motor(motorPin1, "1号电机");
-        this.motor2 = new Motor(motorPin2, "2号电机");
-        this.motor3 = new Motor(motorPin3, "3号电机");
-        this.motor4 = new Motor(motorPin4, "4号电机");
-        this.motors = new Motor[]{this.motor1, this.motor2, this.motor3, this.motor4};
+    public Airplane() {
+        this.motor = new Motor();
     }
 
     /**
@@ -185,30 +162,23 @@ public class Airplane implements Runnable {
             calcHorizontal(motorNums);
             calcRotate(motorNums);
 
-            motor1.setDutyRatio(motorNums[1]);
-            motor2.setDutyRatio(motorNums[2]);
-            motor3.setDutyRatio(motorNums[3]);
-            motor4.setDutyRatio(motorNums[4]);
+            motor.setPwm(motorNums[1], motorNums[2], motorNums[3], motorNums[4]);
         }
     }
 
     public void shutdown() {
         this.run = false;
-        this.motor1.shutdown();
-        this.motor2.shutdown();
-        this.motor3.shutdown();
-        this.motor4.shutdown();
+        direction.reset();
+        motor.shutdown();
     }
 
     /**
      * 提交飞机进入到运行状态
      */
     public void submitThreadRun() {
+        direction.reset();
+        motor.setPwm(-1d, -1d, -1d, -1d);
         threadPoolExecutor.execute(this);
-        threadPoolExecutor.execute(this.motor1);
-        threadPoolExecutor.execute(this.motor2);
-        threadPoolExecutor.execute(this.motor3);
-        threadPoolExecutor.execute(this.motor4);
     }
 
     /**
@@ -225,7 +195,7 @@ public class Airplane implements Runnable {
         // 方向信息
         map.put("direction", direction);
 
-        map.put("motors", motors);
+        map.put("motor", motor.status());
 
         return map;
     }
