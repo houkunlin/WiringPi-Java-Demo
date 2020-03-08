@@ -1,6 +1,5 @@
-package com.wiringpi.modules.airplane.dto;
+package com.wiringpi.demo.hardware;
 
-import com.wiringpi.demo.hardware.Pca9685;
 import com.wiringpi.jni.WiringPiSetup;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;

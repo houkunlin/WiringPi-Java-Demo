@@ -1,6 +1,7 @@
 package com.wiringpi.modules.airplane;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.wiringpi.demo.hardware.Mpu6050;
 import com.wiringpi.modules.airplane.dto.DirectionDTO;
 import com.wiringpi.modules.airplane.dto.Gps;
 import com.wiringpi.modules.airplane.dto.Motor;
@@ -31,6 +32,7 @@ public class Airplane implements Runnable {
      * 姿态数据
      */
     private Posture posture = new Posture();
+    private Mpu6050 mpu6050 = new Mpu6050();
     private DirectionDTO direction = new DirectionDTO();
     private AtomicInteger speed;
     /**
@@ -170,6 +172,7 @@ public class Airplane implements Runnable {
         this.run = false;
         direction.reset();
         motor.shutdown();
+        mpu6050.shutdown();
     }
 
     /**
@@ -179,6 +182,9 @@ public class Airplane implements Runnable {
         direction.reset();
         motor.setPwm(-1d, -1d, -1d, -1d);
         threadPoolExecutor.execute(this);
+
+        mpu6050.initialize();
+        threadPoolExecutor.execute(mpu6050);
     }
 
     /**
@@ -192,6 +198,8 @@ public class Airplane implements Runnable {
         map.put("gps", gps);
         // 姿态信息
         map.put("posture", posture);
+
+        map.put("mpu6050", mpu6050);
         // 方向信息
         map.put("direction", direction);
 
