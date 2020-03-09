@@ -5,7 +5,6 @@ import com.wiringpi.demo.hardware.Mpu6050;
 import com.wiringpi.modules.airplane.dto.DirectionDTO;
 import com.wiringpi.modules.airplane.dto.Gps;
 import com.wiringpi.modules.airplane.dto.Motor;
-import com.wiringpi.modules.airplane.dto.Posture;
 import lombok.Data;
 import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 
@@ -31,8 +30,10 @@ public class Airplane implements Runnable {
     /**
      * 姿态数据
      */
-    private Posture posture = new Posture();
     private Mpu6050 mpu6050 = new Mpu6050();
+    /**
+     * 方向数据
+     */
     private DirectionDTO direction = new DirectionDTO();
     private AtomicInteger speed;
     /**
@@ -195,8 +196,6 @@ public class Airplane implements Runnable {
         // GPS信息
         map.put("gps", gps);
         // 姿态信息
-        map.put("posture", posture);
-
         map.put("mpu6050", mpu6050);
         // 方向信息
         map.put("direction", direction);
