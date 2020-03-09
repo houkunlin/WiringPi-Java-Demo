@@ -52,6 +52,7 @@ public class Airplane implements Runnable {
      */
     public Airplane() {
         this.motor = new Motor();
+        threadPoolExecutor.execute(mpu6050);
     }
 
     /**
@@ -172,7 +173,6 @@ public class Airplane implements Runnable {
         this.run = false;
         direction.reset();
         motor.shutdown();
-        mpu6050.shutdown();
     }
 
     /**
@@ -184,7 +184,6 @@ public class Airplane implements Runnable {
         threadPoolExecutor.execute(this);
 
         mpu6050.initialize();
-        threadPoolExecutor.execute(mpu6050);
     }
 
     /**
