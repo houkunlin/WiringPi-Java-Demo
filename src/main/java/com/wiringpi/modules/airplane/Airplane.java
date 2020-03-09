@@ -180,10 +180,9 @@ public class Airplane implements Runnable {
      */
     public void submitThreadRun() {
         direction.reset();
+        mpu6050.reset();
         motor.setPwm(-1d, -1d, -1d, -1d);
         threadPoolExecutor.execute(this);
-
-        mpu6050.initialize();
     }
 
     /**

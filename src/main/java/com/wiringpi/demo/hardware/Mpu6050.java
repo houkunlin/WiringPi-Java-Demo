@@ -8,6 +8,8 @@ import lombok.ToString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
+
 /**
  * MPU6050 陀螺仪传感器
  *
@@ -23,22 +25,26 @@ public class Mpu6050 implements Runnable {
 
     @JsonIgnore
     private WiringPiI2C piI2C;
+    /**
+     * 陀螺仪角速度计，计算方向角速度
+     */
     private Gyro gyro = new Gyro();
+    /**
+     * 重力加速度计，计算角度和方向重力加速度
+     */
     private Acceleration acceleration = new Acceleration();
-    private Calculation calculation = new Calculation();
+    /**
+     * 旋转角度计算结果
+     */
+    private AngularResult angularResult = new AngularResult();
+    /**
+     * 温度计
+     */
     private Temperature temperature = new Temperature();
 
     private final static double ACCEL_LSB_SENSITIVITY = 16384.0;
     private final static double GYRO_LSB_SENSITIVITY = 131.0;
     private final static double TEMP_LSB_SENSITIVITY = 340.0;
-    /**
-     * if indicator <0    decrease
-     */
-    private final static double OFFSET_ACCEL_ANGLE_X = -12.45;
-    /**
-     * if indicator >0    increase
-     */
-    private final static double OFFSET_ACCEL_ANGLE_Y = 5.77;
 
     public long lastUpdateTime = 0;
 
@@ -80,7 +86,7 @@ public class Mpu6050 implements Runnable {
         write(0x38, 0x00);
         // 配置低功耗操作
         write(0x6C, 0x00);
-        calibrateSensors();
+        reset();
     }
 
     private void write(int reg, int data) {
@@ -94,7 +100,10 @@ public class Mpu6050 implements Runnable {
         }
     }
 
-    public void calibrateSensors() {
+    /**
+     * 初始化、校准、重置
+     */
+    public void reset() {
         logger.info("校准将在10秒钟内开始（不要移动传感器）。");
 
         int nbReadings = 100;
@@ -115,8 +124,8 @@ public class Mpu6050 implements Runnable {
             double accelerationX = readWord2C(0x3B) / ACCEL_LSB_SENSITIVITY;
             double accelerationY = readWord2C(0x3D) / ACCEL_LSB_SENSITIVITY;
             double accelerationZ = readWord2C(0x3F) / ACCEL_LSB_SENSITIVITY;
-            initialAccelerationAngleX += Acceleration.getAccelerationAngleX(accelerationX, accelerationY, accelerationZ);
-            initialAccelerationAngleY += Acceleration.getAccelerationAngleY(accelerationX, accelerationY, accelerationZ);
+            initialAccelerationAngleX += Acceleration.getAbsoluteRotationX(accelerationX, accelerationY, accelerationZ);
+            initialAccelerationAngleY += Acceleration.getAbsoluteRotationY(accelerationX, accelerationY, accelerationZ);
             try {
                 Thread.sleep(50);
             } catch (InterruptedException e) {
@@ -131,17 +140,9 @@ public class Mpu6050 implements Runnable {
         initialAccelerationAngleX /= nbReadings;
         initialAccelerationAngleY /= nbReadings;
 
-        // 绝对角度
-        double filteredAngleX = initialAccelerationAngleX - OFFSET_ACCEL_ANGLE_X;
-        double filteredAngleY = initialAccelerationAngleY - OFFSET_ACCEL_ANGLE_Y;
-
         gyro.setOffset(gyroAngularSpeedOffsetX, gyroAngularSpeedOffsetY, gyroAngularSpeedOffsetZ);
         acceleration.setOffset(initialAccelerationAngleX, initialAccelerationAngleY);
-
-        calculation.init(
-                gyroAngularSpeedOffsetX, gyroAngularSpeedOffsetY, gyroAngularSpeedOffsetZ,
-                initialAccelerationAngleX, initialAccelerationAngleY,
-                filteredAngleX, filteredAngleY);
+        angularResult.reset();
 
         logger.info("校准结束");
     }
@@ -154,7 +155,7 @@ public class Mpu6050 implements Runnable {
         temperature.refresh(this);
         // 陀螺仪旋转角度
         gyro.refresh(this, Math.abs(System.currentTimeMillis() - lastUpdateTime) / 1000.0);
-        calculation.refresh(gyro, acceleration);
+        angularResult.refresh(gyro, acceleration);
 
         lastUpdateTime = System.currentTimeMillis();
     }
@@ -176,6 +177,10 @@ public class Mpu6050 implements Runnable {
         return value;
     }
 
+    public static double num(double num) {
+        return BigDecimal.valueOf(num).setScale(2, BigDecimal.ROUND_HALF_UP).doubleValue();
+    }
+
     @Override
     public void run() {
         lastUpdateTime = System.currentTimeMillis();
@@ -183,7 +188,7 @@ public class Mpu6050 implements Runnable {
         while (run) {
             updateValues();
             try {
-                Thread.sleep(10);
+                Thread.sleep(20);
             } catch (InterruptedException e) {
                 e.printStackTrace();
                 logger.error("睡眠错误中断");
@@ -216,40 +221,45 @@ public class Mpu6050 implements Runnable {
         /**
          * 除去LBS，得到角速度值，绝对角速度
          */
-        private double gyroX;
+        private double divLbsX;
         /**
          * 除去LBS，得到角速度值，绝对角速度
          */
-        private double gyroY;
+        private double divLbsY;
         /**
          * 除去LBS，得到角速度值，绝对角速度
          */
-        private double gyroZ;
+        private double divLbsZ;
         /**
-         * 角速度
+         * 相对角速度，计算实际的角速度，因为角速度有一定波动，需要记录静止状态时的波动数，然后以当前的 - 静止的 = 实际的角速度值
          */
         private double angularSpeedX;
         /**
-         * 角速度
+         * 相对角速度，计算实际的角速度，因为角速度有一定波动，需要记录静止状态时的波动数，然后以当前的 - 静止的 = 实际的角速度值
          */
         private double angularSpeedY;
         /**
-         * 角速度
+         * 相对角速度，计算实际的角速度，因为角速度有一定波动，需要记录静止状态时的波动数，然后以当前的 - 静止的 = 实际的角速度值
          */
         private double angularSpeedZ;
         /**
-         * 旋转角度
+         * 旋转角度计算结果
          */
-        private double angleX;
+        private double resultX;
         /**
-         * 旋转角度
+         * 旋转角度计算结果
          */
-        private double angleY;
+        private double resultY;
         /**
-         * 旋转角度
+         * 旋转角度计算结果
          */
-        private double angleZ;
+        private double resultZ;
 
+        /**
+         * 刷新护具
+         *
+         * @param mpu6050 硬件设备
+         */
         public void refresh(Mpu6050 mpu6050, double longtime) {
             // 原始数据，该数据不具有展示价值
             double rawX = mpu6050.readWord2C(0x43);
@@ -257,21 +267,28 @@ public class Mpu6050 implements Runnable {
             double rawZ = mpu6050.readWord2C(0x47);
 
             // 除去LBS，得到角速度值，绝对角速度
-            gyroX = rawX / GYRO_LSB_SENSITIVITY;
-            gyroY = rawY / GYRO_LSB_SENSITIVITY;
-            gyroZ = rawZ / GYRO_LSB_SENSITIVITY;
+            divLbsX = rawX / GYRO_LSB_SENSITIVITY;
+            divLbsY = rawY / GYRO_LSB_SENSITIVITY;
+            divLbsZ = rawZ / GYRO_LSB_SENSITIVITY;
 
             // 相对角速度，计算实际的角速度，因为角速度有一定波动，需要记录静止状态时的波动数，然后以当前的 - 静止的 = 实际的角速度值
-            angularSpeedX = gyroX - mpu6050.calculation.gyroAngularSpeedOffsetX;
-            angularSpeedY = gyroY - mpu6050.calculation.gyroAngularSpeedOffsetY;
-            angularSpeedZ = gyroZ - mpu6050.calculation.gyroAngularSpeedOffsetZ;
+            angularSpeedX = num(divLbsX - offsetX);
+            angularSpeedY = num(divLbsY - offsetY);
+            angularSpeedZ = num(divLbsZ - offsetZ);
 
             // 计算这段时间内的旋转角度值 = 角度的速度 * time
-            angleX = angularSpeedX * longtime;
-            angleY = angularSpeedY * longtime;
-            angleZ = angularSpeedZ * longtime;
+            resultX = num(angularSpeedX * longtime);
+            resultY = num(angularSpeedY * longtime);
+            resultZ = num(angularSpeedZ * longtime);
         }
 
+        /**
+         * 设置偏移量
+         *
+         * @param offsetX X轴偏移
+         * @param offsetY Y轴偏移
+         * @param offsetZ Z轴偏移
+         */
         public void setOffset(double offsetX, double offsetY, double offsetZ) {
             this.offsetX = offsetX;
             this.offsetY = offsetY;
@@ -297,24 +314,37 @@ public class Mpu6050 implements Runnable {
         /**
          * 除去LBS值，得到该方向的重力加速度，单位g
          */
-        private double accelerationX;
+        private double divLbsX;
         /**
          * 除去LBS值，得到该方向的重力加速度，单位g
          */
-        private double accelerationY;
+        private double divLbsY;
         /**
          * 除去LBS值，得到该方向的重力加速度，单位g
          */
-        private double accelerationZ;
+        private double divLbsZ;
         /**
-         * 通过重力加速度计算出旋转角度
+         * 绝对角度，通过重力加速度计算出旋转角度
          */
-        private double rotationX;
+        private double absoluteRotationX;
         /**
-         * 通过重力加速度计算出旋转角度
+         * 绝对角度，通过重力加速度计算出旋转角度
          */
-        private double rotationY;
+        private double absoluteRotationY;
+        /**
+         * 相对角度，通过重力加速度计算出旋转角度
+         */
+        private double relativelyRotationX;
+        /**
+         * 相对角度，通过重力加速度计算出旋转角度
+         */
+        private double relativelyRotationY;
 
+        /**
+         * 刷新护具
+         *
+         * @param mpu6050 硬件设备
+         */
         public void refresh(Mpu6050 mpu6050) {
             // 原始数据，该数据不具有展示价值
             double rawX = mpu6050.readWord2C(0x3B);
@@ -322,39 +352,38 @@ public class Mpu6050 implements Runnable {
             double rawZ = mpu6050.readWord2C(0x3F);
 
             // 除去LBS，得到该方向的重力加速度，单位g，绝对加速度值
-            accelerationX = rawX / ACCEL_LSB_SENSITIVITY;
-            accelerationY = rawY / ACCEL_LSB_SENSITIVITY;
-            accelerationZ = rawZ / ACCEL_LSB_SENSITIVITY;
+            divLbsX = num(rawX / ACCEL_LSB_SENSITIVITY);
+            divLbsY = num(rawY / ACCEL_LSB_SENSITIVITY);
+            divLbsZ = num(rawZ / ACCEL_LSB_SENSITIVITY);
 
             // 方式一：计算旋转角度，该方式已被废弃，并且该方式的计算结果与方式而一致
             // angleX = getAccelerationAngleX(accelerationX, accelerationY, accelerationZ);
             // angleY = getAccelerationAngleY(accelerationX, accelerationY, accelerationZ);
 
-            // 通过重力加速度计算出旋转角度
-            rotationX = getRotationX(accelerationX, accelerationY, accelerationZ);
-            rotationY = getRotationY(accelerationX, accelerationY, accelerationZ);
+            // 绝对角度，通过重力加速度计算出旋转角度
+            absoluteRotationX = getAbsoluteRotationX(divLbsX, divLbsY, divLbsZ);
+            absoluteRotationY = getAbsoluteRotationY(divLbsX, divLbsY, divLbsZ);
+
+            relativelyRotationX = num(absoluteRotationX - offsetX);
+            relativelyRotationY = num(absoluteRotationY - offsetY);
         }
 
+        /**
+         * 设置偏移量
+         *
+         * @param offsetX X轴偏移
+         * @param offsetY Y轴偏移
+         */
         public void setOffset(double offsetX, double offsetY) {
             this.offsetX = offsetX;
             this.offsetY = offsetY;
         }
 
-        @Deprecated
-        public static double getAccelerationAngleX(double x, double y, double z) {
-            return -(Math.asin(y / dist(x, y, z)) * RADIAN_TO_DEGREE);
-        }
-
-        @Deprecated
-        public static double getAccelerationAngleY(double x, double y, double z) {
-            return -(Math.asin(x / dist(x, y, z)) * RADIAN_TO_DEGREE);
-        }
-
-        public static double getRotationX(double x, double y, double z) {
+        public static double getAbsoluteRotationX(double x, double y, double z) {
             return -(Math.atan2(y, dist(x, z)) * RADIAN_TO_DEGREE);
         }
 
-        public static double getRotationY(double x, double y, double z) {
+        public static double getAbsoluteRotationY(double x, double y, double z) {
             return -(Math.atan2(x, dist(y, z)) * RADIAN_TO_DEGREE);
         }
 
@@ -368,71 +397,42 @@ public class Mpu6050 implements Runnable {
     }
 
     /**
-     * 计算数据
+     * 计算角度数据结果
      */
     @Getter
     @ToString
-    public static class Calculation {
-        /**
-         * 陀螺仪角速度偏移，对象初始化时会初始化该参数
-         */
-        private double gyroAngularSpeedOffsetX;
-        /**
-         * 陀螺仪角速度偏移，对象初始化时会初始化该参数
-         */
-        private double gyroAngularSpeedOffsetY;
-        /**
-         * 陀螺仪角速度偏移，对象初始化时会初始化该参数
-         */
-        private double gyroAngularSpeedOffsetZ;
-
-        /**
-         * 初始加速度角度
-         */
-        private double initialAccelerationAngleX;
-        /**
-         * 初始加速度角度
-         */
-        private double initialAccelerationAngleY;
-
+    public static class AngularResult {
         /**
          * 过滤角度，绝对角度，旋转角度计算结果
          */
-        private double filteredAngleX;
+        private double absoluteAngleX;
         /**
          * 过滤角度，绝对角度，旋转角度计算结果
          */
-        private double filteredAngleY;
+        private double absoluteAngleY;
         /**
-         * 过滤角度，绝对角度，旋转角度计算结果
+         * 垂直方向角度旋转
          */
-        private double filteredAngleZ;
+        private double angleZ;
 
-        private double filteredAngleX1;
-        private double filteredAngleY1;
+        /**
+         * 相对角度
+         */
+        private double relativelyAngleX;
+        /**
+         * 相对角度
+         */
+        private double relativelyAngleY;
 
         /**
          * 初始化值
-         *
-         * @param gyroAngularSpeedOffsetX   陀螺仪角速度偏移
-         * @param gyroAngularSpeedOffsetY   陀螺仪角速度偏移
-         * @param gyroAngularSpeedOffsetZ   陀螺仪角速度偏移
-         * @param initialAccelerationAngleX 初始加速度角度
-         * @param initialAccelerationAngleY 初始加速度角度
-         * @param filteredAngleX            过滤角度
-         * @param filteredAngleY            过滤角度
          */
-        public void init(double gyroAngularSpeedOffsetX, double gyroAngularSpeedOffsetY, double gyroAngularSpeedOffsetZ,
-                         double initialAccelerationAngleX, double initialAccelerationAngleY,
-                         double filteredAngleX, double filteredAngleY) {
-            this.gyroAngularSpeedOffsetX = gyroAngularSpeedOffsetX;
-            this.gyroAngularSpeedOffsetY = gyroAngularSpeedOffsetY;
-            this.gyroAngularSpeedOffsetZ = gyroAngularSpeedOffsetZ;
-            this.initialAccelerationAngleX = initialAccelerationAngleX;
-            this.initialAccelerationAngleY = initialAccelerationAngleY;
-            this.filteredAngleX = filteredAngleX;
-            this.filteredAngleY = filteredAngleY;
-            this.filteredAngleZ = 0;
+        public void reset() {
+            this.absoluteAngleX = 0;
+            this.absoluteAngleY = 0;
+            this.angleZ = 0;
+            this.relativelyAngleX = 0;
+            this.relativelyAngleY = 0;
         }
 
         /**
@@ -442,15 +442,27 @@ public class Mpu6050 implements Runnable {
          * @param acceleration 加速度
          */
         public void refresh(Gyro gyro, Acceleration acceleration) {
+            // 旋转角绝对角度
+            absoluteAngleX = num(complementaryFiltering(absoluteAngleX, gyro.getResultX(), acceleration.getAbsoluteRotationX()));
+            absoluteAngleY = num(complementaryFiltering(absoluteAngleY, gyro.getResultY(), acceleration.getAbsoluteRotationY()));
+            // 旋转角相对角度
+            relativelyAngleX = num(complementaryFiltering(relativelyAngleX, gyro.getResultX(), acceleration.getRelativelyRotationX()));
+            relativelyAngleY = num(complementaryFiltering(relativelyAngleY, gyro.getResultY(), acceleration.getRelativelyRotationY()));
+            angleZ = num(angleZ + num(gyro.getResultZ()));
+        }
+
+        /**
+         * 互补过滤器
+         *
+         * @param baseNumber 基础值
+         * @param number1    咱比高的值
+         * @param number2    咱比地的值
+         * @return 结果
+         */
+        public double complementaryFiltering(double baseNumber, double number1, double number2) {
             // 互补过滤器
             double alpha = 0.96;
-            // 旋转角绝对角度
-            filteredAngleX = alpha * (filteredAngleX + gyro.getAngleX()) + (1.0 - alpha) * (acceleration.getRotationX() - OFFSET_ACCEL_ANGLE_X);
-            filteredAngleY = alpha * (filteredAngleY + gyro.getAngleY()) + (1.0 - alpha) * (acceleration.getRotationY() - OFFSET_ACCEL_ANGLE_Y);
-            // 测量零
-            filteredAngleX1 = alpha * (filteredAngleX + gyro.getAngleX()) + (1.0 - alpha) * (acceleration.getRotationX() - initialAccelerationAngleX);
-            filteredAngleY1 = alpha * (filteredAngleY + gyro.getAngleY()) + (1.0 - alpha) * (acceleration.getRotationY() - initialAccelerationAngleY);
-            filteredAngleZ = filteredAngleZ + gyro.getAngleZ();
+            return alpha * (baseNumber + number1) + (1.0 - alpha) * (number2);
         }
     }
 

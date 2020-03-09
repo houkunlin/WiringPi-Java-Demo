@@ -19,32 +19,28 @@ class Mpu6050Test {
     @Test
     public void testMpu6050() {
         Mpu6050 mpu6050 = new Mpu6050();
-        new Thread(mpu6050::updateValues).start();
-        Mpu6050.Calculation calculation = mpu6050.getCalculation();
-        logger.debug("陀螺仪角速度偏移 : {} {} {}",
-                num(calculation.getGyroAngularSpeedOffsetX()),
-                num(calculation.getGyroAngularSpeedOffsetY()),
-                num(calculation.getGyroAngularSpeedOffsetZ()));
+        new Thread(mpu6050).start();
+        Mpu6050.AngularResult angularResult = mpu6050.getAngularResult();
         for (int i = 0; i < 1000; i++) {
             logger.debug("{}", mpu6050);
             Mpu6050.Gyro gyro = mpu6050.getGyro();
             Mpu6050.Acceleration acceleration = mpu6050.getAcceleration();
-            logger.debug("陀螺仪-旋转角度-传感器值 : x={} , y={} , z={}",
+            logger.debug("陀螺仪-角速度-传感器值 : x={} , y={} , z={}",
                     num(gyro.getAngularSpeedX()),
                     num(gyro.getAngularSpeedY()),
                     num(gyro.getAngularSpeedZ()));
-            logger.debug("陀螺仪-旋转角度-计算结果 : x={} , y={} , z={}",
-                    num(gyro.getAngleX()),
-                    num(gyro.getAngleY()),
-                    num(gyro.getAngleZ()));
+            logger.debug("陀螺仪-角速度-计算结果 : x={} , y={} , z={}",
+                    num(gyro.getResultX()),
+                    num(gyro.getResultY()),
+                    num(gyro.getResultZ()));
 
-            logger.debug("陀螺仪-加速度-传感器值 : x={} , y={} , z={}",
-                    num(acceleration.getAccelerationX()),
-                    num(acceleration.getAccelerationY()),
-                    num(acceleration.getAccelerationZ()));
-            logger.debug("陀螺仪-加速度-计算结果 : x={} , y={} , z={}",
-                    num(acceleration.getRotationX()),
-                    num(acceleration.getRotationY()),
+            logger.debug("重力加速度计-传感器值 : x={} , y={} , z={}",
+                    num(acceleration.getDivLbsX()),
+                    num(acceleration.getDivLbsY()),
+                    num(acceleration.getDivLbsZ()));
+            logger.debug("重力加速度计-旋转角度计算结果 : x={} , y={} , z={}",
+                    num(acceleration.getAbsoluteRotationX()),
+                    num(acceleration.getAbsoluteRotationY()),
                     num(0));
             System.out.println();
             System.out.println();
@@ -68,12 +64,12 @@ class Mpu6050Test {
     @Test
     public void testVibration() {
         Mpu6050 mpu6050 = new Mpu6050();
-        new Thread(mpu6050::updateValues).start();
+        new Thread(mpu6050).start();
 
         double error = 0;
         for (int i = 0; i < 100; i++) {
-            double sysVibration = Math.pow(mpu6050.getCalculation().getFilteredAngleX(), 2) +
-                    Math.pow(mpu6050.getCalculation().getFilteredAngleY(), 2);
+            double sysVibration = Math.pow(mpu6050.getAngularResult().getAbsoluteAngleX(), 2) +
+                    Math.pow(mpu6050.getAngularResult().getAbsoluteAngleY(), 2);
             logger.info("总振动为 {}", sysVibration);
             try {
                 Thread.sleep(100);
