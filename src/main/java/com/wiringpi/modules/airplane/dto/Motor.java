@@ -83,7 +83,7 @@ public class Motor {
      *
      * @return
      */
-    private int calcHighLevelTimeUs(Double dutyRatio) {
+    public int calcHighLevelTimeUs(Double dutyRatio) {
         // 0.7 为电机不报警的最低高电平时间，只要小于0.7的高电平电机就报警
         double highLevelTime = dutyRatio * motorMidHighLevelTimeMs + MOTOR_MIN_HIGH_LEVEL_TIME_MS;
         if (highLevelTime >= MOTOR_MAX_HIGH_LEVEL_TIME_MS) {
@@ -110,8 +110,40 @@ public class Motor {
         pca9685.setServoPulse(i, MOTOR_MIN_HIGH_LEVEL_TIME_MS);
     }
 
+    /**
+     * 判断一个PWM是否能够使电机运行起来
+     *
+     * @param pwm PWM值
+     * @return 结果
+     */
     public boolean isRun(int pwm) {
         return pwm <= MOTOR_MAX_HIGH_LEVEL_TIME_MS && pwm > MOTOR_MIN_HIGH_LEVEL_TIME_MS + 80;
+    }
+
+    /**
+     * 判断某个占空比是否能够使电机运行起来
+     *
+     * @param dutyRatio 暂空比
+     * @return 结果
+     */
+    public boolean dutyRatioCanRun(double dutyRatio) {
+        return isRun(calcHighLevelTimeUs(dutyRatio));
+    }
+
+    /**
+     * 判断占空比是否能够使所有电机运行起来
+     *
+     * @param offset     暂空比列表的起始位置
+     * @param dutyRatios 暂空比列表
+     * @return 结果
+     */
+    public boolean dutyRatioCanRun(int offset, Double... dutyRatios) {
+        for (int i = offset; i < dutyRatios.length; i++) {
+            if (!dutyRatioCanRun(dutyRatios[i])) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public Object status() {
