@@ -17,6 +17,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 
 /**
  * 飞机
@@ -46,6 +47,10 @@ public class Airplane implements Runnable {
     private Motor motor;
 
     private boolean run;
+    /**
+     * 0 最大油门 1最小油门
+     */
+    private boolean[] motorRun = new boolean[]{false, false};
 
     private Double[] posture = new Double[]{0.0, 0.0, 0.0, 0.0, 0.0};
 
@@ -142,34 +147,26 @@ public class Airplane implements Runnable {
         double absoluteAngleX = angularResult.getAbsoluteAngleX();
         // Y轴的绝对倾斜角度
         double absoluteAngleY = angularResult.getAbsoluteAngleY();
-        // 如果在左右运动
-        if (Math.abs(absoluteAngleX) >= 0.5) {
-            // 姿态已经受到改变
-        }
-        // 如果有前后运动
-        if (Math.abs(absoluteAngleY) >= 0.5) {
-            // 姿态已经受到改变
-        }
-        double num = 5;
-        if (Math.abs(forwardBackward - absoluteAngleX) > num) {
-            // 预计倾角与实际倾角产生一定的偏差，因此需要修正倾角偏差
-            if (forwardBackward > absoluteAngleX) {
-                calcForwardBackward(posture, 0.05);
-            } else {
-                calcForwardBackward(posture, -0.05);
-            }
-        }
-        if (Math.abs(horizontal - absoluteAngleY) > num) {
-            // 预计倾角与实际倾角产生一定的偏差，因此需要修正倾角偏差
-            if (horizontal > absoluteAngleY) {
-                calcHorizontal(posture, 0.05);
-            } else {
-                calcHorizontal(posture, -0.05);
-            }
-        }
-        // 如果在旋转运动
+        // X轴的相对倾斜角度
+        double relativelyAngleX = angularResult.getRelativelyAngleX();
+        // Y轴的相对倾斜角度
+        double relativelyAngleY = angularResult.getRelativelyAngleY();
 
-        // 如果以上都不在，则需要调整姿态运行参数
+        calc(forwardBackward, relativelyAngleX, this::calcForwardBackward);
+        calc(horizontal, relativelyAngleY, this::calcHorizontal);
+    }
+
+    public void calc(double control, double angle, BiConsumer<Double[], Double> fun) {
+        int num = 5;
+        double step = 0.005;
+        if (Math.abs(control - angle) > num) {
+            // 预计倾角与实际倾角产生一定的偏差，因此需要修正倾角偏差
+            if (control > angle) {
+                fun.accept(posture, step);
+            } else {
+                fun.accept(posture, -step);
+            }
+        }
     }
 
     /**
@@ -191,6 +188,37 @@ public class Airplane implements Runnable {
         run = true;
         while (run) {
             double vertical = direction.getVertical();
+            if (vertical < 0.0 || vertical > 1.0) {
+                logger.info("退出1，方向数据：{}", direction);
+                try {
+                    Thread.sleep(50);
+                } catch (Exception ignore) {
+                }
+                continue;
+            }
+            if (!motorRun[0] || !motorRun[1]) {
+                if (vertical >= 1.0) {
+                    motorRun[0] = true;
+                    vertical = 1.0;
+                } else if (vertical <= 0.0) {
+                    motorRun[1] = true;
+                    vertical = 0.0;
+                } else {
+                    logger.info("退出2，方向数据：{}", direction);
+                    try {
+                        Thread.sleep(50);
+                    } catch (Exception ignore) {
+                    }
+                    continue;
+                }
+                motor.setPwm(vertical, vertical, vertical, vertical);
+                logger.info("电机校准，方向数据：{}", direction);
+                try {
+                    Thread.sleep(50);
+                } catch (Exception ignore) {
+                }
+                continue;
+            }
             /*
              * 电机位置
              * 2     1
@@ -200,7 +228,7 @@ public class Airplane implements Runnable {
             boolean isRun = motor.dutyRatioCanRun(1, motorNums);
             if (isRun) {
                 // 电机已经运行，可以进行姿态调整
-                // fineTuning(motorNums);
+                fineTuning(motorNums);
             }
             for (int i = 0; i < posture.length; i++) {
                 if (posture[i] > 0.5) {
@@ -213,16 +241,16 @@ public class Airplane implements Runnable {
             logger.debug("姿态调整状态：{} {} {}", isRun, Arrays.toString(motorNums), Arrays.toString(posture));
             for (int i = 0; i < motorNums.length; i++) {
                 motorNums[i] += posture[i];
-                if (motorNums[i] > 1) {
+                if (motorNums[i] > 1.0) {
                     motorNums[i] = 1.0;
                 }
-                if (vertical >= 0 && motorNums[i] < 0) {
+                if (motorNums[i] < 0.0) {
                     motorNums[i] = 0.0;
                 }
             }
             motor.setPwm(motorNums[1], motorNums[2], motorNums[3], motorNums[4]);
             try {
-                Thread.sleep(50);
+                Thread.sleep(30);
             } catch (Exception ignore) {
             }
         }
@@ -233,6 +261,8 @@ public class Airplane implements Runnable {
         this.run = false;
         direction.reset();
         motor.shutdown();
+        motorRun[0] = false;
+        motorRun[1] = false;
     }
 
     /**
@@ -241,8 +271,8 @@ public class Airplane implements Runnable {
     public void submitThreadRun() {
         direction.reset();
         motor.setPwm(-1d, -1d, -1d, -1d);
-        mpu6050.reset();
         threadPoolExecutor.execute(this);
+        mpu6050.reset();
     }
 
     /**
